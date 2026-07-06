@@ -28,7 +28,7 @@ defmodule Realtime.GenRpcTest do
                         origin_node: ^current_node,
                         target_node: ^current_node,
                         success: true,
-                        mechanism: :gen_rpc
+                        mechanism: :erpc
                       }}
     end
 
@@ -42,7 +42,7 @@ defmodule Realtime.GenRpcTest do
                         origin_node: ^current_node,
                         target_node: ^current_node,
                         success: false,
-                        mechanism: :gen_rpc
+                        mechanism: :erpc
                       }}
     end
 
@@ -55,7 +55,7 @@ defmodule Realtime.GenRpcTest do
                         origin_node: ^current_node,
                         target_node: ^node,
                         success: true,
-                        mechanism: :gen_rpc
+                        mechanism: :erpc
                       }}
     end
 
@@ -69,7 +69,7 @@ defmodule Realtime.GenRpcTest do
                         origin_node: ^current_node,
                         target_node: ^node,
                         success: false,
-                        mechanism: :gen_rpc
+                        mechanism: :erpc
                       }}
     end
 
@@ -90,7 +90,7 @@ defmodule Realtime.GenRpcTest do
                         origin_node: ^current_node,
                         target_node: ^current_node,
                         success: false,
-                        mechanism: :gen_rpc
+                        mechanism: :erpc
                       }}
     end
 
@@ -111,7 +111,7 @@ defmodule Realtime.GenRpcTest do
                         origin_node: ^current_node,
                         target_node: ^node,
                         success: false,
-                        mechanism: :gen_rpc
+                        mechanism: :erpc
                       }}
     end
 
@@ -125,7 +125,7 @@ defmodule Realtime.GenRpcTest do
                         origin_node: ^current_node,
                         target_node: ^current_node,
                         success: false,
-                        mechanism: :gen_rpc
+                        mechanism: :erpc
                       }}
     end
 
@@ -139,28 +139,7 @@ defmodule Realtime.GenRpcTest do
                         origin_node: ^current_node,
                         target_node: ^node,
                         success: false,
-                        mechanism: :gen_rpc
-                      }}
-    end
-
-    @tag extra_config: [{:gen_rpc, :tcp_server_port, 9999}]
-    test "bad tcp error", %{node: node} do
-      current_node = node()
-
-      log =
-        capture_log(fn ->
-          assert GenRpc.call(node, Map, :fetch, [%{a: 1}, :a], tenant_id: 123) == {:error, :rpc_error, :econnrefused}
-        end)
-
-      assert log =~
-               ~r/project=123 external_id=123 \[error\] ErrorOnRpcCall: %{\s+error: :econnrefused,\s+mod: Map,\s+func: :fetch,\s+target:\s+:"#{node}"/
-
-      assert_receive {[:realtime, :rpc], %{latency: _},
-                      %{
-                        origin_node: ^current_node,
-                        target_node: ^node,
-                        success: false,
-                        mechanism: :gen_rpc
+                        mechanism: :erpc
                       }}
     end
 
@@ -207,19 +186,8 @@ defmodule Realtime.GenRpcTest do
       refute_receive _any
     end
 
-    @tag extra_config: [{:gen_rpc, :tcp_server_port, 9999}]
-    test "tcp error" do
-      Logger.put_process_level(self(), :debug)
-
-      log =
-        capture_log(fn ->
-          assert GenRpc.abcast(Node.list(), :some_process_name, "a message", []) == :ok
-          # We have to wait for gen_rpc logs to show up
-          Process.sleep(100)
-        end)
-
-      assert log =~ "failed_to_connect_server"
-
+    test "ignores disconnected nodes" do
+      assert GenRpc.abcast([:unknown_erpc_node@localhost], :some_process_name, "a message", []) == :ok
       refute_receive _any
     end
   end
@@ -253,20 +221,10 @@ defmodule Realtime.GenRpcTest do
       refute_receive _any
     end
 
-    @tag extra_config: [{:gen_rpc, :tcp_server_port, 9999}]
-    test "tcp error", %{node: node} do
+    test "ignores cast to disconnected node" do
       parent = self()
-      Logger.put_process_level(self(), :debug)
 
-      log =
-        capture_log(fn ->
-          assert GenRpc.cast(node, Kernel, :send, [parent, :sent]) == :ok
-          # We have to wait for gen_rpc logs to show up
-          Process.sleep(100)
-        end)
-
-      assert log =~ "failed_to_connect_server"
-
+      assert GenRpc.cast(:unknown_erpc_node@localhost, Kernel, :send, [parent, :sent]) == :ok
       refute_receive _any
     end
   end
@@ -282,22 +240,11 @@ defmodule Realtime.GenRpcTest do
       refute_receive _any
     end
 
-    @tag extra_config: [{:gen_rpc, :tcp_server_port, 9999}]
-    test "tcp error" do
+    test "multicast sends to the local node" do
       parent = self()
-      Logger.put_process_level(self(), :debug)
 
-      log =
-        capture_log(fn ->
-          assert GenRpc.multicast(Kernel, :send, [parent, :sent]) == :ok
-          # We have to wait for gen_rpc logs to show up
-          Process.sleep(100)
-        end)
-
-      assert log =~ "failed_to_connect_server"
-
+      assert GenRpc.multicast(Kernel, :send, [parent, :sent]) == :ok
       assert_receive :sent
-      refute_receive _any
     end
   end
 
@@ -320,7 +267,7 @@ defmodule Realtime.GenRpcTest do
                         origin_node: ^current_node,
                         target_node: ^node,
                         success: true,
-                        mechanism: :gen_rpc
+                        mechanism: :erpc
                       }}
 
       assert_receive {[:realtime, :rpc], %{latency: _},
@@ -328,7 +275,7 @@ defmodule Realtime.GenRpcTest do
                         origin_node: ^current_node,
                         target_node: ^current_node,
                         success: true,
-                        mechanism: :gen_rpc
+                        mechanism: :erpc
                       }}
     end
 
@@ -354,7 +301,7 @@ defmodule Realtime.GenRpcTest do
                         origin_node: ^current_node,
                         target_node: ^node,
                         success: false,
-                        mechanism: :gen_rpc
+                        mechanism: :erpc
                       }}
 
       assert_receive {[:realtime, :rpc], %{latency: _},
@@ -362,40 +309,17 @@ defmodule Realtime.GenRpcTest do
                         origin_node: ^current_node,
                         target_node: ^current_node,
                         success: false,
-                        mechanism: :gen_rpc
+                        mechanism: :erpc
                       }}
     end
 
-    @tag extra_config: [{:gen_rpc, :tcp_server_port, 9999}]
-    test "partial results with bad tcp error", %{node: node} do
+    test "returns results for connected nodes", %{node: node} do
       current_node = node()
 
-      log =
-        capture_log(fn ->
-          assert GenRpc.multicall(Map, :fetch, [%{a: 1}, :a], tenant_id: 123) == [
-                   {node(), {:ok, 1}},
-                   {node, {:error, :rpc_error, :econnrefused}}
-                 ]
-        end)
-
-      assert log =~
-               ~r/project=123 external_id=123 \[error\] ErrorOnRpcCall: %{\s+error: :econnrefused,\s+mod: Map,\s+func: :fetch,\s+target:\s+:"#{node}"/
-
-      assert_receive {[:realtime, :rpc], %{latency: _},
-                      %{
-                        origin_node: ^current_node,
-                        target_node: ^node,
-                        success: false,
-                        mechanism: :gen_rpc
-                      }}
-
-      assert_receive {[:realtime, :rpc], %{latency: _},
-                      %{
-                        origin_node: ^current_node,
-                        target_node: ^current_node,
-                        success: true,
-                        mechanism: :gen_rpc
-                      }}
+      assert GenRpc.multicall(Map, :fetch, [%{a: 1}, :a], tenant_id: 123) == [
+               {current_node, {:ok, 1}},
+               {node, {:ok, 1}}
+             ]
     end
   end
 
