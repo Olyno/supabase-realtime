@@ -117,6 +117,12 @@ metrics_jwt_secret =
     System.fetch_env!("METRICS_JWT_SECRET")
   end
 
+nats_enabled = Env.get_boolean("NATS_ENABLED", false)
+broker_min_nodes = Env.get_integer("BROKER_MIN_NODES", 0)
+nats_host = System.get_env("NATS_HOST", "127.0.0.1")
+nats_port = Env.get_integer("NATS_PORT", 4222)
+nats_token = System.get_env("NATS_TOKEN")
+
 after_connect_query_args =
   case db_after_connect_query do
     nil -> nil
@@ -186,6 +192,12 @@ config :realtime, Realtime.Repo,
 
 config :realtime,
   websocket_max_heap_size: websocket_max_heap_size,
+  broker_enabled: nats_enabled,
+  broker_min_nodes: broker_min_nodes,
+  broker: Realtime.Broker.Nats,
+  nats_host: nats_host,
+  nats_port: nats_port,
+  nats_token: nats_token,
   migration_partition_slots: migration_partition_slots,
   connect_partition_slots: connect_partition_slots,
   rebalance_check_interval_in_ms: rebalance_check_interval_in_ms,

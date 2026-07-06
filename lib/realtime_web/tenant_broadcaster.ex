@@ -1,6 +1,8 @@
 defmodule RealtimeWeb.TenantBroadcaster do
   @moduledoc """
-  gen_rpc broadcaster
+  Broadcasts tenant messages either through the default Phoenix.PubSub stack
+  (backed by gen_rpc for inter-node fan-out) or through a configurable broker
+  such as NATS.
   """
 
   alias Phoenix.PubSub
@@ -19,7 +21,11 @@ defmodule RealtimeWeb.TenantBroadcaster do
   def pubsub_direct_broadcast(node, tenant_id, topic, message, dispatcher, message_type) do
     collect_payload_size(tenant_id, message, message_type)
 
-    do_direct_broadcast(node, topic, message, dispatcher)
+    if broker_enabled?() do
+      broker().publish(topic, message, dispatcher: dispatcher)
+    else
+      do_direct_broadcast(node, topic, message, dispatcher)
+    end
 
     :ok
   end
@@ -38,7 +44,13 @@ defmodule RealtimeWeb.TenantBroadcaster do
           :ok
   def pubsub_broadcast(tenant_id, topic, message, dispatcher, message_type) do
     collect_payload_size(tenant_id, message, message_type)
-    PubSub.broadcast(Realtime.PubSub, topic, message, dispatcher)
+
+    if broker_enabled?() do
+      broker().publish(topic, message, dispatcher: dispatcher)
+    else
+      PubSub.broadcast(Realtime.PubSub, topic, message, dispatcher)
+    end
+
     :ok
   end
 
@@ -53,8 +65,34 @@ defmodule RealtimeWeb.TenantBroadcaster do
           :ok
   def pubsub_broadcast_from(tenant_id, from, topic, message, dispatcher, message_type) do
     collect_payload_size(tenant_id, message, message_type)
-    PubSub.broadcast_from(Realtime.PubSub, from, topic, message, dispatcher)
+
+    if broker_enabled?() do
+      broker().publish(topic, message, dispatcher: dispatcher)
+    else
+      PubSub.broadcast_from(Realtime.PubSub, from, topic, message, dispatcher)
+    end
+
     :ok
+  end
+
+  defp broker_enabled? do
+    Application.get_env(:realtime, :broker_enabled, false) and
+      sufficient_nodes_for_broker?()
+  end
+
+  defp sufficient_nodes_for_broker? do
+    min_nodes = Application.get_env(:realtime, :broker_min_nodes, 0)
+
+    if min_nodes <= 1 do
+      true
+    else
+      region = Application.get_env(:realtime, :region)
+      length(Realtime.Nodes.region_nodes(region)) >= min_nodes
+    end
+  end
+
+  defp broker do
+    Application.get_env(:realtime, :broker, Realtime.Broker.Nats)
   end
 
   @payload_size_event [:realtime, :tenants, :payload, :size]

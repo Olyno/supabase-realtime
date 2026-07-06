@@ -80,8 +80,28 @@ defmodule Realtime.Application do
     master_region = Application.get_env(:realtime, :master_region) || region
     user_scope_shards = Application.fetch_env!(:realtime, :users_scope_shards)
     user_scope_broadast_interval_in_ms = Application.get_env(:realtime, :users_scope_broadcast_interval_in_ms, 10_000)
+    broker_enabled = Application.get_env(:realtime, :broker_enabled, false)
+    broker = Application.get_env(:realtime, :broker, Realtime.Broker.Nats)
 
     :syn.join(RegionNodes, region, self(), node: node())
+
+    broker_children =
+      if broker_enabled do
+        nats_host = Application.get_env(:realtime, :nats_host, "127.0.0.1")
+        nats_port = Application.get_env(:realtime, :nats_port, 4222)
+        nats_token = Application.get_env(:realtime, :nats_token)
+
+        [
+          broker.child_spec(
+            host: nats_host,
+            port: nats_port,
+            token: nats_token,
+            pubsub: Realtime.PubSub
+          )
+        ]
+      else
+        []
+      end
 
     zta_children =
       case Application.get_env(:realtime, :dashboard_auth) do
@@ -152,7 +172,7 @@ defmodule Realtime.Application do
          pool_size: presence_pool_size,
          broadcast_period: presence_broadcast_period,
          permdown_period: presence_permdown_period}
-      ] ++ extensions_supervisors() ++ janitor_tasks() ++ metrics_pusher_children() ++ zta_children
+      ] ++ broker_children ++ extensions_supervisors() ++ janitor_tasks() ++ metrics_pusher_children() ++ zta_children
 
     database_connections = if master_region == region, do: [Realtime.Repo], else: [Replica.replica()]
 

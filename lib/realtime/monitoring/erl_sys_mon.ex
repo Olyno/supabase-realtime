@@ -11,15 +11,20 @@ defmodule Realtime.ErlSysMon do
     :busy_dist_port,
     :busy_port,
     {:long_gc, 500},
-    {:long_schedule, 500},
-    {:long_message_queue, {0, 1_000}}
+    {:long_schedule, 500}
   ]
 
   def start_link(args), do: GenServer.start_link(__MODULE__, args)
 
   def init(args) do
     config = Keyword.get(args, :config, @defaults)
-    :erlang.system_monitor(self(), config)
+
+    try do
+      :erlang.system_monitor(self(), [{:long_message_queue, {0, 1_000}} | config])
+    rescue
+      ArgumentError ->
+        :erlang.system_monitor(self(), config)
+    end
 
     {:ok, []}
   end

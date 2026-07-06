@@ -13,7 +13,13 @@ config :realtime,
   version: Mix.Project.config()[:version],
   replication_watchdog_interval: :timer.minutes(5),
   replication_watchdog_timeout: :timer.minutes(1),
-  replication_ready_timeout: :timer.minutes(1)
+  replication_ready_timeout: :timer.minutes(1),
+  broker_enabled: false,
+  broker_min_nodes: 0,
+  broker: Realtime.Broker.Nats,
+  nats_host: "127.0.0.1",
+  nats_port: 4222,
+  nats_token: nil
 
 # Configures the endpoint
 config :realtime, RealtimeWeb.Endpoint,
